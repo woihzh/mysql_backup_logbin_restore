@@ -6,6 +6,10 @@ import json
 import time
 import requests
 import logging
+try:
+    import subprocess32 as subprocess
+except:
+    import subprocess
 
 try:
     import ConfigParser
@@ -26,7 +30,8 @@ def read_conf(conf_name=os.path.join(current_path,"restore_to_local.conf")):
     conf = ConfigParser.ConfigParser()
     conf.read(conf_name)
     return (conf.get('backup', 'fold'),conf.get('backup', 'sql_prefix'),conf.get('backup', 'binlog_prefix'),
-            conf.get('db', 'host'), conf.get('db', 'user'), conf.get('db', 'password'), conf.get('db', 'port'),
+            conf.get('remote', 'host'),conf.get('remote', 'user'),conf.get('remote', 'fold'),
+            conf.get('db', 'user'), conf.get('db', 'password'),
             conf.get('mail', 'smtp_server'), conf.get('mail', 'login_name'), conf.get('mail', 'password'),
             conf.get('mail', 'alarm_list'),
             conf.get('gaojing', 'token_default'), conf.get('gaojing', 'id_default'),
@@ -34,9 +39,20 @@ def read_conf(conf_name=os.path.join(current_path,"restore_to_local.conf")):
             )
 
 backup_fold, backup_sql_prefix, backup_binlog_prefix,\
-db_host, db_user, db_password, db_port,\
+remote_host, remote_user, remote_fold,\
+db_user, db_password,\
 mail_server, mail_username, mail_password, mail_alarm_list,\
 gaojing_default_token, gaojing_default_id, gaojing_message_token, gaojing_message_id = read_conf()
+
+def bash(cmd):
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = p.communicate()
+    if result[1] or p.returncode:
+        return_code = 1
+    else:
+        return_code = 0
+    output = "stdout:\n%s\nstderr:\n%s" % (result[0], result[1])
+    return {"code": return_code, "output": output}
 
 def send_gaojing(service_id, token, message):
     data = {"service_id": service_id,
@@ -115,5 +131,7 @@ if __name__ == '__main__':
     binlog_str = ' '.join(binlogs)
 
     # scp file to remote file
-    cmd = 'cd %s; scp -p %s %s %s@%s:%s/' % (backup_fold, binlog_str, last_backup, )
+    cmd = 'cd %s; scp -p %s %s %s@%s:%s/' % (backup_fold, binlog_str, last_backup, remote_user, remote_host,
+                                             remote_fold)
+    cmd_result = bash(cmd)
     cmd = 'zcat |sed '18,31d'|grep -av "SQL SECURITY DEFINER"'
