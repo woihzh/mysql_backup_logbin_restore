@@ -168,10 +168,13 @@ if __name__ == '__main__':
     if len(binlogs) > 1:
         binlogs.sort()
         last_binlog = binlogs[-1]
-        print("binlog_file_abs: %s" % binlog_file_abs)
-        last_pos = get_last_bin_pos(binlog_file_abs)
+        print("bin logs to restore are: %s " % str(binlogs))
+        logging.info("bin logs to restore are: %s " % str(binlogs))
+        last_pos = get_last_bin_pos(os.path.join(work_fold,last_binlog))
+        print("last position in last bin log file %s is: %s" % (last_binlog, last_pos))
+        logging.info("last position in last bin log file %s is: %s" % (last_binlog, last_pos))
         binlogs_str = ' '.join(binlogs)
-        cmd = 'cd %s;mysqlbinlog -D --no-defaults --start-position=%s --stop-position=%s %s\
+        cmd = 'cd %s;mysqlbinlog --no-defaults -D --start-position=%s --stop-position=%s %s\
          | mysql -u %s -p%s' % (work_fold, binlog_pos, last_pos, binlogs_str, db_user, db_password)
         result = bash(cmd)
         if result["code"] != 0:
