@@ -3,6 +3,7 @@
 import re
 import os
 import json
+import pexpect
 import time
 import requests
 import logging
@@ -30,8 +31,8 @@ def read_conf(conf_name=os.path.join(current_path,"restore_to_local.conf")):
     conf = ConfigParser.ConfigParser()
     conf.read(conf_name)
     return (conf.get('backup', 'fold'),conf.get('backup', 'sql_prefix'),conf.get('backup', 'binlog_prefix'),
-            conf.get('remote', 'host'),conf.get('remote', 'user'),conf.get('remote', 'fold'),
-            conf.get('db', 'user'), conf.get('db', 'password'),
+            conf.get('remote', 'host'),conf.get('remote', 'user'),conf.get('remote', 'password'),conf.get('remote', 'fold'),
+            conf.get('db', 'user'), conf.get('db', 'password'), conf.get('db', 'database'),
             conf.get('mail', 'smtp_server'), conf.get('mail', 'login_name'), conf.get('mail', 'password'),
             conf.get('mail', 'alarm_list'),
             conf.get('gaojing', 'token_default'), conf.get('gaojing', 'id_default'),
@@ -39,8 +40,8 @@ def read_conf(conf_name=os.path.join(current_path,"restore_to_local.conf")):
             )
 
 backup_fold, backup_sql_prefix, backup_binlog_prefix,\
-remote_host, remote_user, remote_fold,\
-db_user, db_password,\
+remote_host, remote_user, remote_password, remote_fold,\
+db_user, db_password, db_database,\
 mail_server, mail_username, mail_password, mail_alarm_list,\
 gaojing_default_token, gaojing_default_id, gaojing_message_token, gaojing_message_id = read_conf()
 
@@ -70,7 +71,7 @@ def send_gaojing(service_id, token, message):
     print("The baidu Gaojing return message is: %s" % result["message"])
 
 def send_mail(server=mail_server, user=mail_username, password=mail_password,
-              receive_list=mail_alarm_list, email_subject="Rsync on aliyun200 from IDC is not working!",
+              receive_list=mail_alarm_list, email_subject="Restore db to %s is not working!"% remote_host,
               attach_file=error_file):
     #print(receive_list)
     rec_list = receive_list.split()
@@ -86,6 +87,10 @@ def send_mail(server=mail_server, user=mail_username, password=mail_password,
     envelope.add_attachment(attach_file)
     envelope.send(server, login=user, password=password, tls=True)
 
+def copy_pub_key(host, user, password):
+    pass
+
+
 def get_last_sql_file(fold, regular_m=backup_sql_prefix):
     files = os.listdir(fold)
     last_file = ''
@@ -95,12 +100,16 @@ def get_last_sql_file(fold, regular_m=backup_sql_prefix):
     return last_file
 
 def get_bin_logs(fold, sql_name, regular_m=backup_binlog_prefix):
-    re_result = re.match('^[\s\S]*?_(%s\.\d+)_pos-(\d+)\.sql\.gz$' % regular_m, sql_name)
+    re_result = re.match('^.*_(%s\.\d+)_(\d+)\.sql\.gz$' % regular_m, sql_name)
     start_logbin_name = ""
     pos = ""
+    #print(fold, sql_name, regular_m)
     if re_result:
+        print("find binlog recode in sql backup file name")
         start_logbin_name = re_result.group(1)
+        print("the start logbin is: %s" % start_logbin_name)
         pos = re_result.group(2)
+        print("pos is: %s" % pos)
     else:
         print("can't find recorded binlog in sql backup file name")
         logging.error("can't find recorded binlog in sql backup file name")
@@ -129,9 +138,59 @@ if __name__ == '__main__':
         exit()
     binlogs.sort()
     binlog_str = ' '.join(binlogs)
+    print("bin logs to restore are: %s" % binlog_str)
+    logging.info("bin logs to restore are: %s" % binlog_str)
 
     # scp file to remote file
-    cmd = 'cd %s; scp -p %s %s %s@%s:%s/' % (backup_fold, binlog_str, last_backup, remote_user, remote_host,
+    cmd = 'cd %s; rsync -t %s %s %s@%s:%s/' % (backup_fold, binlog_str, last_backup, remote_user, remote_host,
                                              remote_fold)
-    cmd_result = bash(cmd)
-    cmd = 'zcat |sed '18,31d'|grep -av "SQL SECURITY DEFINER"'
+    result = bash(cmd)
+    if result["code"] != 0:
+        print(result["output"])
+        logging.error(result["output"])
+        send_mail()
+        #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+        exit()
+    cmd = 'ssh %s@%s mysql -u %s -p%s -e \\\"drop database if exists %s\;create database %s default character \
+    set utf8mb4\;\\\"' % (remote_user, remote_host, db_user, db_password, db_database, db_database)
+    result = bash(cmd)
+    if result["code"] != 0:
+        print(result["output"])
+        logging.error(result["output"])
+        send_mail()
+        #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+        exit()
+    cmd = 'ssh %s@%s zcat %s\|grep -av \\\"SQL SECURITY DEFINER\\\"\|mysql -u %s -p%s %s' % (
+        remote_user, remote_host, os.path.join(remote_fold, last_backup), db_user, db_password, db_database)
+    result = bash(cmd)
+    if result["code"] != 0:
+        print(result["output"])
+        logging.error(result["output"])
+        send_mail()
+        #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+        exit()
+    if db_database == "jubao":
+        cmd = 'ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D --start-position=%s %s \|mysql -u %s -p%s' % (
+            remote_user, remote_host, remote_fold, pos, binlog_str, db_user, db_password)
+    else:
+        cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
+        --start-position=%s %s \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
+            remote_user, remote_host, remote_fold, pos, binlog_str, db_database, db_user, db_password)
+    result = bash(cmd)
+    if result["code"] != 0:
+        print(result["output"])
+        logging.error(result["output"])
+        send_mail()
+        #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+        exit()
+    #cmd = 'ssh %s@%s rm -rf %s/*' % (remote_user, remote_host, remote_fold)
+    #result = bash(cmd)
+    #if result["code"] != 0:
+    #    print(result["output"])
+    #    logging.error(result["output"])
+    #    send_mail()
+    #    #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+    #    exit()
+    print("succeed in restore database %s to %s" % (db_database, remote_host))
+    logging.info("succeed in restore database %s to %s" % (db_database, remote_host))
+    send_mail(email_subject="Succeed in restore database %s to %s" % (db_database, remote_host))
