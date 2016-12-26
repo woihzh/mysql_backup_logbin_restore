@@ -137,6 +137,14 @@ if __name__ == '__main__':
         send_mail()
         exit()
     binlogs.sort()
+    # if bin log date time is old then 2h, exit
+    last_binlog_time = os.stat(os.path.join(backup_fold, binlogs[-1])).st_mtime
+    if time.time() - last_binlog_time > 7200:
+        print("bin log in local backup fold is old then 2 hours, exit")
+        logging.error("Trying to restore db to %s from local 51 but bin log in local51 backup \
+        fold is old then 2 hours, exit" % remote_host)
+        send_mail(email_subject="Fail: local51 restore to %s" % remote_host)
+        exit()
     binlog_str = ' '.join(binlogs)
     print("bin logs to restore are: %s" % binlog_str)
     logging.info("bin logs to restore are: %s" % binlog_str)
@@ -173,6 +181,7 @@ if __name__ == '__main__':
         cmd = 'ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D --start-position=%s %s \|mysql -u %s -p%s' % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_user, db_password)
     else:
+        # use sed to replace database name in binlog out
         cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
         --start-position=%s %s \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_database, db_user, db_password)
@@ -193,4 +202,4 @@ if __name__ == '__main__':
     #    exit()
     print("succeed in restore database %s to %s" % (db_database, remote_host))
     logging.info("succeed in restore database %s to %s" % (db_database, remote_host))
-    send_mail(email_subject="Succeed in restore database %s to %s" % (db_database, remote_host))
+    send_mail(email_subject="Success: in restore database %s to %s" % (db_database, remote_host))
