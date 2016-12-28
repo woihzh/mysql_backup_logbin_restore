@@ -123,8 +123,6 @@ def get_last_bin_pos(filename):
         exit()
     return int(pos)
 
-
-
 if __name__ == '__main__':
     today = arrow.now().format('YYYY-MM-DD') + " 00:45:00"
     print("today is: %s" % today)
@@ -214,5 +212,29 @@ if __name__ == '__main__':
             print("error: recoded binlog pos larger then new pos in bin log file on aliyun200")
             logging.error("error: recoded binlog pos larger then new pos in bin log file on aliyun200")
             send_mail()
+    # compare sql query result from remote with local
+    sql_mark = ""
+    with open(os.path.join(work_fold, "SQL_QUERY_MARK"), 'r') as f:
+        sql_mark = f.read()
+    yesterday = yesterday = arrow.now().replace(days=-1).format('YYYY-MM-DD')
+    cmd = "mysql -u %s -p%s %s -Nse \"select truncate(sum(pirp.nb_principal),2) as 'daishoubenjing', truncate(sum(pirp.nb_interest),2) as \
+     'daishouzonglixi' from fiz_plan_invest_repay_plan pirp left join fiz_plan_invest pi on pirp.fk_plan_invest_id = \
+     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) >'%s' \
+     and p.dc_platform ='01' order by 1;\"" % (db_user, db_password, "jubao", yesterday)
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = p.communicate()
+    if result[1] or p.returncode:
+        print("Error in execute mysql query on aliyun200 "+result[1])
+        logging.error(result[1])
+        send_mail()
+        exit()
+    elif sql_mark == result[0]:
+        print("Aliyun200 identical to product db")
+        logging.info("Aliyun200 identical to product db")
+        send_mail()
+    else:
+        print("Aliyun db jubao not identical with product")
+        logging.error("Aliyun db jubao not identical with product")
+        send_mail()
 
 

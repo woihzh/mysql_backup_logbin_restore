@@ -111,6 +111,23 @@ def scp(source_file, des_file, host=remote_host, port=remote_port, user=remote_u
     #except Exception as e:
     #    exit()
 
+# execute a mysql query and record the result and which will be sent to remote as compare in remote db
+def mark_db_query():
+    yesterday = yesterday = arrow.now().replace(days=-1).format('YYYY-MM-DD')
+    cmd = "mysql -u %s -p%s %s -Nse \"select truncate(sum(pirp.nb_principal),2) as 'daishoubenjing', truncate(sum(pirp.nb_interest),2) as \
+     'daishouzonglixi' from fiz_plan_invest_repay_plan pirp left join fiz_plan_invest pi on pirp.fk_plan_invest_id = \
+     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) >'%s' \
+     and p.dc_platform ='01' order by 1;\"" % (db_user, db_password, db_databases, yesterday)
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = p.communicate()
+    if result[1] or p.returncode:
+        print("Error in execute mysql query"+result[1])
+        logging.error(result[1])
+        exit()
+    else:
+        with open(os.path.join(backup_fold, "SQL_QUERY_MARK"), 'w') as f:
+            f.write(result[0])
+
 # mysqldump and gzip and scp to remote fold
 def db_backup():
     today=arrow.now().format('YYYY-MM-DD')
@@ -271,7 +288,9 @@ def db_binlog_sync():
             logging.error(result["output"])
             send_mail()
             exit()
-        cmd='rsync --port=%d -t %s %s %s@%s:%s' % (remote_port, files, rsync_time_mark,
+        mark_db_query()
+        mark_db_query_file_abs = os.path.join(backup_fold, "SQL_QUERY_MARK")
+        cmd='rsync --port=%d -t %s %s %s %s@%s:%s' % (remote_port, files, rsync_time_mark, mark_db_query_file_abs,
                                                 remote_user, remote_host, remote_fold)
         result = bash(cmd)
         if result["code"] != 0:
@@ -290,7 +309,9 @@ def db_binlog_sync():
             logging.error(result["output"])
             send_mail()
             exit()
-        cmd='rsync --port=%d -t %s %s@%s:%s' % (remote_port, rsync_time_mark,
+        mark_db_query()
+        mark_db_query_file_abs = os.path.join(backup_fold, "SQL_QUERY_MARK")
+        cmd='rsync --port=%d -t %s %s %s@%s:%s' % (remote_port, rsync_time_mark, mark_db_query_file_abs,
                                                    remote_user, remote_host, remote_fold)
         result = bash(cmd)
         if result["code"] != 0:
@@ -308,5 +329,4 @@ if __name__ == '__main__':
             db_binlog_sync()
         else:
             print("usage: python db_backup.py backup or python db_backup.py rsync")
-
 
