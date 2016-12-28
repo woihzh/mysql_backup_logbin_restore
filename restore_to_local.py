@@ -1,5 +1,39 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+'''
+   find db backup file and bin logs in local fold which define in configure file, restore to remote host's mysql.
+rsync sql.gz file and bin logs to remote host, then  use terminal ssh to execute command on remote host.
+check mysql setting of 'max_allowed_packet' if the value little then 16M break, because the product mysql set
+mysqldump variable 'max_allowed_packet' 16M
+    a configure file 'restore_to_local.conf' is required to setting variables. the format of the conf file is like:
+[backup]
+fold = /ssss/ssss
+sql_prefix = xxxxx
+binlog_prefix = master-bin
+
+[remote]
+host = 10.13.2.57
+user = root
+password = kkkkkk
+fold = /root/db_resto
+
+[db]
+user = root
+password = ssssss
+database = jkkkjkj
+
+[mail]
+smtp_server = smtp.xxxxx.com
+login_name = klk_gaojing@xxxxx.com
+password = EdI_FMdsfsf
+alarm_list = sllklkuo@jkjkj.net sjdsj@sfsfjs.com
+
+[gaojing]
+token_default = 8290afe7038825cbe9d479b248e9c6a8i
+id_default = 46217
+token_message = 300dd439a02c790035897d027e07fff552
+id_message = 50889
+'''
 import re
 import os
 import json
