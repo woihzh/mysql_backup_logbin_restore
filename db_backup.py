@@ -116,7 +116,7 @@ def mark_db_query():
     yesterday = yesterday = arrow.now().replace(days=-1).format('YYYY-MM-DD')
     cmd = "mysql -u %s -p%s %s -Nse \"select truncate(sum(pirp.nb_principal),2) as 'daishoubenjing', truncate(sum(pirp.nb_interest),2) as \
      'daishouzonglixi' from fiz_plan_invest_repay_plan pirp left join fiz_plan_invest pi on pirp.fk_plan_invest_id = \
-     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) >'%s' \
+     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) ='%s' \
      and p.dc_platform ='01' order by 1;\"" % (db_user, db_password, db_databases, yesterday)
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result = p.communicate()

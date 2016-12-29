@@ -182,9 +182,9 @@ if __name__ == '__main__':
             #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
             exit()
         write_conf(os.path.join(work_fold, last_binlog), last_pos)
-        print("Succeed in execute bin logs to db")
-        logging.info("Succeed in execute bin logs to aliyun200")
-        send_mail(email_subject="Succeed in execute bin logs to aliyun200")
+        print("Success: aliyun200 execute bin logs to db")
+        logging.info("Success: aliyun200 execute bin logs")
+        send_mail(email_subject="Succeess aliyun200 execute bin logs jubao")
     else:
         last_pos = get_last_bin_pos(binlog_file_abs)
         print("last_pos: %s, type is: %s" % (last_pos, type(last_pos)))
@@ -201,9 +201,9 @@ if __name__ == '__main__':
                 #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
                 exit()
             write_conf(os.path.join(work_fold, binlogs[0]), last_pos)
-            print("Succeed in execute bin logs to db")
-            logging.info("Succeed in execute bin logs to aliyun200")
-            send_mail(email_subject="Succeed in execute bin logs to aliyun200")
+            print("Success: aliyun200 execute bin logs")
+            logging.info("Success: aliyun200 execute bin logs to jubao")
+            send_mail(email_subject="Success aliyun200 execute bin logs to jubao")
         elif last_pos == binlog_pos:
             print("no newer enters in bin log to restore")
             logging.info("no newer enters in bin log to restore")
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     yesterday = yesterday = arrow.now().replace(days=-1).format('YYYY-MM-DD')
     cmd = "mysql -u %s -p%s %s -Nse \"select truncate(sum(pirp.nb_principal),2) as 'daishoubenjing', truncate(sum(pirp.nb_interest),2) as \
      'daishouzonglixi' from fiz_plan_invest_repay_plan pirp left join fiz_plan_invest pi on pirp.fk_plan_invest_id = \
-     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) >'%s' \
+     pi.pk_id left join fiz_plan p on pi.fk_plan_id = p.pk_id where date(pirp.dt_date) ='%s' \
      and p.dc_platform ='01' order by 1;\"" % (db_user, db_password, "jubao", yesterday)
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result = p.communicate()
@@ -231,10 +231,10 @@ if __name__ == '__main__':
     elif sql_mark == result[0]:
         print("Aliyun200 identical to product db")
         logging.info("Aliyun200 identical to product db")
-        send_mail()
+        send_mail(email_subject="Success aliyun200 compare db jubao with product")
     else:
         print("Aliyun db jubao not identical with product")
         logging.error("Aliyun db jubao not identical with product")
-        send_mail()
+        send_mail(email_subject="Fail aliyun200 compare db jubao with product")
 
 
