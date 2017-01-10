@@ -14,6 +14,7 @@ binlog_prefix = master-bin
 [remote]
 host = 10.13.2.57
 user = root
+## the password not required
 password = kkkkkk
 fold = /root/db_resto
 
@@ -37,7 +38,7 @@ id_message = 50889
 import re
 import os
 import json
-import pexpect
+#import pexpect
 import time
 import requests
 import logging
@@ -124,6 +125,28 @@ def send_mail(server=mail_server, user=mail_username, password=mail_password,
 def copy_pub_key(host, user, password):
     pass
 
+# check mysqld setting variables 'max_allowed_packet'
+def check_mysql_setting(host=remote_host, user=remote_user, db_user=db_user, db_password=db_password):
+    cmd = 'ssh %s@%s mysql -u %s -p%s -Nse \\\"show variables like \\\'max_allowed_packet\\\'\;\\\"' % (
+        remote_user, remote_host, db_user, db_password)
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = p.communicate()
+    if result[1] or p.returncode:
+        print("error when checking remote mysqld setting: %s" % result[1])
+        logging.error("error when checking remote mysqld setting")
+        send_mail()
+        exit()
+    else:
+        max_allowed_packet = int(result[0].split()[1])
+        print("the remote max_allowed_packet setting is: %s" % max_allowed_packet)
+        logging.info("the remote max_allowed_packet setting is: %s" % max_allowed_packet)
+        if max_allowed_packet < 16777216:
+            print("'max_allowed_packet' setting in remote mysqld was lower then 16M, exit")
+            logging.error("'max_allowed_packet' setting in remote mysqld was lower then 16M, exit")
+            send_mail()
+            exit()
+        else:
+            print("'max_allowed_packet' check ok!")
 
 def get_last_sql_file(fold, regular_m=backup_sql_prefix):
     files = os.listdir(fold)
@@ -183,6 +206,15 @@ if __name__ == '__main__':
     print("bin logs to restore are: %s" % binlog_str)
     logging.info("bin logs to restore are: %s" % binlog_str)
 
+    # remove remote files under "remote_fold"
+    cmd = 'ssh %s@%s rm -rf %s/*' % (remote_user, remote_host, remote_fold)
+    result = bash(cmd)
+    if result["code"] != 0:
+        print(result["output"])
+        logging.error(result["output"])
+        send_mail()
+        #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
+        exit()
     # scp file to remote file
     cmd = 'cd %s; rsync -t %s %s %s@%s:%s/' % (backup_fold, binlog_str, last_backup, remote_user, remote_host,
                                              remote_fold)
@@ -212,12 +244,15 @@ if __name__ == '__main__':
         #send_gaojing(gaojing_id_message, gaojing_token_message, "weekly mysqldump of product db fail")
         exit()
     if db_database == "jubao":
-        cmd = 'ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D --start-position=%s %s \|mysql -u %s -p%s' % (
+        cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
+        --start-position=%s %s \|sed \\\'/\`jubaopen\`@\`172.16.%%.%%\`/s//\`root\`@\`localhost\`/\\\' \
+        \|grep -avE \\\'grant\|revoke\\\' \|mysql -u %s -p%s" % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_user, db_password)
     else:
         # use sed to replace database name in binlog out
         cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
-        --start-position=%s %s \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
+        --start-position=%s %s \|sed \\\'/\`jubaopen\`@\`172.16.%%.%%\`/s//\`root\`@\`localhost\`/\\\' \
+        \|grep -avE \\\'grant\|revoke\\\' \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_database, db_user, db_password)
     result = bash(cmd)
     if result["code"] != 0:

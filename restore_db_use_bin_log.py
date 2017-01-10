@@ -172,8 +172,9 @@ if __name__ == '__main__':
         print("last position in last bin log file %s is: %s" % (last_binlog, last_pos))
         logging.info("last position in last bin log file %s is: %s" % (last_binlog, last_pos))
         binlogs_str = ' '.join(binlogs)
-        cmd = 'cd %s;mysqlbinlog --no-defaults -D --start-position=%s --stop-position=%s %s\
-         | mysql -u %s -p%s' % (work_fold, binlog_pos, last_pos, binlogs_str, db_user, db_password)
+        cmd = "cd %s;mysqlbinlog --no-defaults -D --start-position=%s --stop-position=%s %s \
+        |sed '/`jubaopen`@`172.16.%%.%%`/s//`root`@`localhost`/'|grep -avE 'grant|revoke' \
+        |mysql -u %s -p%s" % (work_fold, binlog_pos, last_pos, binlogs_str, db_user, db_password)
         result = bash(cmd)
         if result["code"] != 0:
             print(result["output"])
@@ -191,8 +192,9 @@ if __name__ == '__main__':
         print("recorded pos is: %s, type is: %s" % (binlog_pos, type(binlog_pos)))
         logging.info("last_pos: %s" % last_pos)
         if last_pos > binlog_pos:
-            cmd = 'cd %s;mysqlbinlog --no-defaults -D --start-position=%s --stop-position=%s %s\
-                   | mysql -u %s -p%s' % (work_fold, binlog_pos, last_pos, binlogs[0], db_user, db_password)
+            cmd = "cd %s;mysqlbinlog --no-defaults -D --start-position=%s --stop-position=%s %s\
+            |sed '/`jubaopen`@`172.16.%%.%%`/s//`root`@`localhost`/'|grep -avE 'grant|revoke' \
+            |mysql -u %s -p%s" % (work_fold, binlog_pos, last_pos, binlogs[0], db_user, db_password)
             result = bash(cmd)
             if result["code"] != 0:
                 print(result["output"])
