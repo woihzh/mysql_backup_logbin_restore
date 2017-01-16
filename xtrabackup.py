@@ -60,14 +60,14 @@ current_path = os.path.abspath(os.path.dirname(__file__))
 
 
 # read variables from configure file
-def read_conf(conf_name=os.path.join(current_path, "restore_to_local.conf")):
+def read_conf(conf_name=os.path.join(current_path, "xtrabackup.conf")):
     # print(conf_name)
     conf = ConfigParser.ConfigParser()
     conf.read(conf_name)
     return (conf.get('log', 'name'),
             conf.get('backup', 'fold'), conf.get('backup', 'prefix'),
             conf.get('remote', 'host'), conf.get('remote', 'user'), conf.get('remote', 'fold'),
-            conf.get('db', 'user'), conf.get('db', 'password'), conf.get('db', 'database'),
+            conf.get('db', 'user'), conf.get('db', 'password'), conf.get('db', 'database'), conf.get('db', 'socket'),
             conf.get('mail', 'smtp_server'), conf.get('mail', 'login_name'), conf.get('mail', 'password'),
             conf.get('mail', 'alarm_list'), conf.get('mail', 'sub_success'), conf.get('mail', 'sub_fail'),
             conf.get('gaojing', 'token_default'), conf.get('gaojing', 'id_default'),
@@ -76,7 +76,7 @@ def read_conf(conf_name=os.path.join(current_path, "restore_to_local.conf")):
 log_error, \
     backup_fold, backup_prefix, \
     remote_host, remote_user, remote_fold, \
-    db_user, db_password, db_database, \
+    db_user, db_password, db_database, db_socket, \
     mail_server, mail_username, mail_password, mail_alarm_list, mail_sub_success, mail_sub_fail, \
     gaojing_default_token, gaojing_default_id, gaojing_message_token, gaojing_message_id = read_conf()
 
@@ -139,7 +139,7 @@ def send_mail(email_sub, server=mail_server, user=mail_username, password=mail_p
 
 def innobackup(user, password, database, fold):
     backup_abs_fold = ""
-    cmd = 'innobackupex --user=%s --password=%s --databases="mysql %s" %s/' % (user, password, database,
+    cmd = 'innobackupex --socket=%s --user=%s --password=%s --databases="mysql %s" %s/' % (db_socket, user, password, database,
                                                                                fold)
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result = p.communicate()
@@ -194,7 +194,7 @@ def innoapply(fold):
 
 def compress(fold):
     fold_name = os.path.basename(fold)
-    backup_file_name = os.path.join(backup_fold, backup_prefix + "-" + fold_name + "tar.gz")
+    backup_file_name = os.path.join(backup_fold, backup_prefix + "-" + fold_name + ".tar.gz")
     cmd = "tar -C %s -czf %s %s" % (backup_fold, backup_file_name, fold_name)
     result = bash(cmd)
     if result["code"] != 0:
