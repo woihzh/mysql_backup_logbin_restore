@@ -246,13 +246,13 @@ if __name__ == '__main__':
     if db_database == "jubao":
         cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
         --start-position=%s %s \|sed \\\'/\`jubaopen\`@\`172.16.%%.%%\`/s//\`root\`@\`localhost\`/\\\' \
-        \|grep -avE \\\'grant\|revoke\\\' \|mysql -u %s -p%s" % (
+        \|grep -avE \\\'grant\|revoke\|SET PASSWORD\\\' \|mysql -u %s -p%s" % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_user, db_password)
     else:
         # use sed to replace database name in binlog out
         cmd = "ssh %s@%s cd %s \;mysqlbinlog --no-defaults -D \
         --start-position=%s %s \|sed \\\'/\`jubaopen\`@\`172.16.%%.%%\`/s//\`root\`@\`localhost\`/\\\' \
-        \|grep -avE \\\'grant\|revoke\\\' \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
+        \|grep -avE \\\'grant\|revoke\|SET PASSWORD\\\' \|sed \\\'/\`jubao\`/s/jubao/%s/\\\'\|mysql -u %s -p%s" % (
             remote_user, remote_host, remote_fold, pos, binlog_str, db_database, db_user, db_password)
     result = bash(cmd)
     if result["code"] != 0:
