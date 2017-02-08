@@ -78,6 +78,48 @@ backup_fold, name_prefix, db_user, db_password, db_databases, db_log_bin_fold, m
 mail_password, mail_alarm_list, remote_host, remote_port, remote_user, remote_password, remote_fold,\
 gaojing_token_default, gaojing_id_default, gaojing_token_message, gaojing_id_message = read_conf()
 
+def send_mail_0(attach_file=None, server='smtp.sina.com', user='yjksdfjs@asdfsa.net', password='dfsdli8',
+              recipients='zhouweiguo@kkkskf.net',
+              subject="TEST report from pengfei",
+              content="Attached please find today's report"
+              ):
+    #print(receive_list)
+    #rec_list = receive_list.split()
+
+    msg = MIMEMultipart()
+    msg["subject"] = Header(subject, 'utf-8')
+    msg["From"] = user
+    msg["To"] = recipients
+    msg.attach(MIMEText(content, 'plain', 'utf-8'))
+    if attach_file:
+        file_base_name = os.path.basename(attach_file)
+        attach_part = MIMEBase('application', 'octet-stream')
+        attach_part.set_payload(open(attach_file, 'rb').read())
+        encoders.encode_base64(attach_part)
+        attach_part.add_header('Content-Disposition', 'attachment',
+                             filename=(Header(file_base_name, 'utf-8').encode()))
+        msg.attach(attach_part)
+
+    receive_list = [item for item in recipients.split(', ')]
+    # try two times of sending mail
+    try:
+        s = smtplib.SMTP_SSL(server, timeout=30)
+        s.login(user, password)
+        s.sendmail(user, receive_list, msg.as_string())
+        s.close()
+    except Exception as e:
+        print(str(e) + "/nTry again after 3s.")
+        time.sleep(3)
+        try:
+            s = smtplib.SMTP_SSL(server, timeout=30)
+            s.login(user, password)
+            s.sendmail(user, receive_list, msg.as_string())
+            s.close()
+        except Exception as e:
+            print(str(e))
+            logging.error(str(e))
+
+
 def send_mail(server=mail_server, user=mail_username, password=mail_password,
               receive_list=mail_alarm_list, email_subject="Error in database backup",
               attach_file=error_file):
@@ -273,7 +315,7 @@ def db_binlog_sync():
         files = db_log_bin_fold + os.path.sep + files
         print("the files to be rsynced are: %s" % files)
         logging.error("the files to be rsynced are: %s" % files)
-        cmd = 'rsync -t %s %s' % (files, backup_fold)
+        cmd = 'rsync -t %s %s;chmod -R 755 %s' % (files, backup_fold, backup_fold)
         result=bash(cmd)
         if result["code"] != 0:
             print(result["output"])
